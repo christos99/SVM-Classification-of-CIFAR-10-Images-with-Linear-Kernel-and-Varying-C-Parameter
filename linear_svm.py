@@ -72,3 +72,14 @@ def linear_svm(c, krnl):
             axarr[0, i].set_title(title1)
 
             plt_img(x_test[r_i, :], axarr[1, i])
+                        plt_img(x_test[r_i, :], axarr[1, i])
+            title2 = 'true={0:s} est={1:s}'.format(classesName[y_test[r_i].astype(int)],
+                                                   classesName[y_pred_test[r_i].astype(int)])
+            axarr[1, i].set_title(title2)
+
+# Running SVM for different c values
+c_svm_linear = [0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
+
+for c in c_svm_linear:
+    linear_svm(c, "linear")
+
