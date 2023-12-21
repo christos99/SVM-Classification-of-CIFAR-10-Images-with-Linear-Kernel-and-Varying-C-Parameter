@@ -1,86 +1,78 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.datasets import cifar10
-%matplotlib inline
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import time
 import warnings
 from sklearn.exceptions import DataConversionWarning
 
+# Suppress warnings related to data conversion in sklearn
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 
-# Load CIFAR-10 dataset
-(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+def load_and_preprocess_data():
+    """
+    Load and preprocess the CIFAR-10 dataset.
+    Normalize and reshape the data, and return a subset for training and testing.
+    """
+    # Load dataset
+    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 
-# Class names for CIFAR-10
-classesName = ["plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+    # Normalize and reshape
+    x_train, x_test = x_train.astype(np.float32) / 127.5 - 1, x_test.astype(np.float32) / 127.5 - 1
+    x_train, x_test = x_train.reshape((x_train.shape[0], -1)), x_test.reshape((x_test.shape[0], -1))
+    y_train, y_test = y_train.flatten(), y_test.flatten()
 
-# Convert pixel values to float
-x_train = x_train.astype(np.float)
-x_test = x_test.astype(np.float)
+    # Use a smaller subset for efficiency
+    return x_train[:3000], y_train[:3000], x_test[:2000], y_test[:2000]
 
-# Reshape data into a vector and normalize (-1 to 1)
-x_train = np.reshape(x_train, (x_train.shape[0], -1))
-y_train = np.reshape(y_train, (y_train.shape[0], -1))
-x_test = np.reshape(x_test, (x_test.shape[0], -1))
-y_test = np.reshape(y_test, (y_test.shape[0], -1))
+def plot_images(images, labels, predictions, class_names):
+    """
+    Plot a selection of images with their predicted and true labels.
+    """
+    fig, axes = plt.subplots(2, 4, figsize=(20, 8))
+    for i, ax in enumerate(axes.flat):
+        ax.imshow(images[i].reshape(32, 32, 3))
+        title = f"True: {class_names[labels[i]]}\nPredicted: {class_names[predictions[i]]}"
+        ax.set_title(title)
+        ax.axis('off')
+    plt.show()
 
-x_train = ((x_train / 255) * 2) - 1
-x_test = ((x_test / 255) * 2) - 1
-
-# Select a smaller dataset (3000 samples for training and 2000 samples for testing)
-x_train = x_train[:3000, :]
-y_train = y_train[:3000, :]
-x_test = x_test[:2000, :]
-y_test = y_test[:2000, :]
-
-y_test = np.array(np.reshape(y_test, 2000))
-
-# Function for plotting images
-def plt_img(x, ax):
-    n_row = 32
-    n_col = 32
-    n_colour = 3
-    x_new = x.reshape((n_row, n_col, n_colour))
-    ax.imshow(x_new)
-
-# SVM classification with polynomial kernel
-def poly_svm(c):
-    clf = SVC(C=c, kernel='poly')
-    start = time.time()
+def train_and_evaluate_svm(x_train, y_train, x_test, y_test, C, kernel='poly'):
+    """
+    Train an SVM model with a polynomial kernel and evaluate its performance.
+    """
+    print(f"Training SVM with {kernel} kernel (C={C})")
+    start_time = time.time()
+    clf = SVC(C=C, kernel=kernel)
     clf.fit(x_train, y_train)
-    stop = time.time()
-    training_time = stop - start
-    y_pred_train = clf.predict(x_train)
-    y_pred_test = clf.predict(x_test)
-    test_accuracy = accuracy_score(y_test, y_pred_test)
-    train_accuracy = accuracy_score(y_train, y_pred_train)
-    print("For c = " + str(c) + ", accuracy on the testing set is: " + str(test_accuracy) +
-          ", accuracy on the training set is: " + str(train_accuracy) + " and training time is equal to: " +
-          str(training_time) + " seconds")
+    training_time = time.time() - start_time
 
-    # Plot 4 false predicted images and 4 correctly predicted images for c = 0.1
-    if c == 0.1:
-        print("Some image predictions for c = 0.1: ")
-        n = 4
-        err = np.where(y_pred_test != y_test)[0]
-        right = np.where(y_pred_test == y_test)[0]
-        f, axarr = plt.subplots(2, n, figsize=(20, 8))
-        for i in range(n):
-            e_i = err[i]
-            r_i = right[i]
-            plt_img(x_test[e_i, :], axarr[0, i])
-            title1 = 'true={0:s} est={1:s}'.format(classesName[y_test[e_i].astype(int)],
-                                                   classesName[y_pred_test[e_i].astype(int)])
-            axarr[0, i].set_title(title1)
-            plt_img(x_test[r_i, :], axarr[1, i])
-            title2 = 'true={0:s} est={1:s}'.format(classesName[y_test[r_i].astype(int)],
-                                                   classesName[y_pred_test[r_i].astype(int)])
-            axarr[1, i].set_title(title2)
+    # Calculate accuracies
+    train_accuracy = accuracy_score(y_train, clf.predict(x_train))
+    test_accuracy = accuracy_score(y_test, clf.predict(x_test))
 
-# Running SVM for different c values with polynomial kernel
-c_svm_poly = [0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
-for c in c_svm_poly:
-    poly_svm(c)
+    print(f"C={C}: Test Acc={test_accuracy:.4f}, Train Acc={train_accuracy:.4f}, Training Time={training_time:.2f}s")
 
+    return clf
+
+def main():
+    class_names = ["plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+    x_train, y_train, x_test, y_test = load_and_preprocess_data()
+
+    # Define C values for SVM
+    C_values = [0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
+
+    for C in C_values:
+        clf = train_and_evaluate_svm(x_train, y_train, x_test, y_test, C)
+
+        # Plot sample predictions for C=0.1
+        if C == 0.1:
+            predictions = clf.predict(x_test)
+            errors = np.where(predictions != y_test)[0]
+            corrects = np.where(predictions == y_test)[0]
+            sample_indices = np.concatenate([errors[:4], corrects[:4]])
+            plot_images(x_test[sample_indices], y_test[sample_indices], predictions[sample_indices], class_names)
+
+if __name__ == "__main__":
+    main()
